@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-    "containers",
-    "containers_bin"
+    "lib_containers",
+    "bin_containers"
 ]

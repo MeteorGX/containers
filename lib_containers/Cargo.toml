@@ -1,5 +1,5 @@
 [package]
-name = "containers"
+name = "lib_containers"
 version = "0.1.0"
 authors = ["MeteorCat <meteorcat@live.cn>"]
 edition = "2018"

@@ -58,7 +58,7 @@ impl<'a,'b,'c,'d> SpaceBuilder<'a,'b,'c,'d>{
     }
 
     pub fn mount(&self)->Result<(),std::io::Error> {
-        if Self::is_param_failed(self.target_path.as_ref()) ||
+        if Self::is_param_failed(self.target_path) ||
             Self::is_param_failed(self.src_path) ||
             Self::is_param_failed(self.type_name){
             return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
@@ -91,14 +91,27 @@ impl<'a,'b,'c,'d> SpaceBuilder<'a,'b,'c,'d>{
         Ok(())
     }
 
-    pub fn umount(&self)->Result<(),std::io::Error>{
+    pub const MNT_DEFAULT:i32 = 0x0;
+    pub const MNT_FORCE:i32 = 0x1;
+    pub const MNT_DETACH:i32 = 0x2;
+    pub const MNT_EXPIRE:i32 = 0x4;
+    pub const UMOUNT_NOFOLLOW:i32 = 0x6; //Unrealized(since Linux 2.6.34)
+
+
+    pub fn umount(&self,flag:i32)->Result<(),std::io::Error>{
         if Self::is_param_failed(self.target_path) {
             return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
         }
 
         unsafe {
             let c_target_path = std::ffi::CString::new(self.target_path)?;
-            let ret = libc::umount(c_target_path.as_ptr());
+            let ret = if flag == Self::MNT_DEFAULT {
+                libc::umount(c_target_path.as_ptr())
+            }else{
+                let c_flags = libc::c_int::from(flag);
+                libc::umount2(c_target_path.as_ptr(),c_flags)
+            };
+
             if ret != 0 {
                 return Err(std::io::Error::from_raw_os_error(ret))
             }
