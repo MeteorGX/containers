@@ -70,4 +70,10 @@ fn main() -> Result<(),std::io::Error>{
 $ cat /proc/self/cgroup 
 ```
 
+
+![Attach_Shell](others/attach_shell.png)
+
+> `20:cpu:/mini-container`
+>> This is the execution container we created 
+
 > To be continued
