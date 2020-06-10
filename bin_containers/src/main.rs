@@ -42,22 +42,14 @@ fn main() -> Result<(),std::io::Error>{
 
     //build cgroup
     let mut cgroup = CGroupBuilder::new("mini-container")?;
-
     cgroup.add_controller("cpu")?;
 
     if let Some(cg) = cgroup.get_mut_controller("cpu") {
-        cg.add_str("title","MeteorCat")?;
+        //cg.add_str("space","MeteorCat")?;
         println!("CGROUP = {:?}",cg);
     }
-
-    cgroup.modify()?;
-    if let Some(cg) = cgroup.get_mut_controller("cpu") {
-        println!("CGROUP = {:?}",cg.get_str("title")?);
-    }
-
-
-    //cgroup.create(0)?;
-    //cgroup.delete(0)?;
+    cgroup.create(0)?;
+    cgroup.attach_shell("/")?;
 
     Ok(())
 }

@@ -201,6 +201,27 @@ extern "C" {
     pub fn cgroup_get_value_name(cgroup: *const cgroup_controller,idx:libc::c_int)-> *mut libc::c_char;
 
 
+
+
+
+
+    pub fn cgroup_get_uid_gid(
+        cgroup: *const cgroup,
+        task_uid: *mut libc::uid_t,
+        task_gid: *mut libc::gid_t,
+        ctrl_uid: *mut libc::uid_t,
+        ctrl_gid: *mut libc::gid_t,
+    ) -> libc::c_int;
+
+    pub fn cgroup_set_uid_gid(
+        cgroup: *const cgroup,
+        task_uid: libc::uid_t,
+        task_gid: libc::gid_t,
+        ctrl_uid: libc::uid_t,
+        ctrl_gid: libc::gid_t,
+    ) -> libc::c_int;
+
+
     // cgroup controller each
     pub fn cgroup_get_all_controller_begin(handle: *const *const libc::c_void,
                                            info: *mut CGroupControllerData)
@@ -211,28 +232,14 @@ extern "C" {
     pub fn cgroup_get_all_controller_end(handle: *const *const libc::c_void) -> libc::c_int;
 
 
-    // cgroup subsystem
+
+    // manipulation with task
+    pub fn cgroup_attach_task(cgroup: *const cgroup) -> libc::c_int;
+    pub fn cgroup_attach_task_pid(cgroup: *const cgroup,pid: libc::pid_t) -> libc::c_int;
     pub fn cgroup_get_current_controller_path(
         id: libc::pid_t,
         controller: *const libc::c_char,
         current_path: *const *const libc::c_char
-    ) -> libc::c_int;
-
-
-    pub fn cgroup_get_uid_gid(
-        cgroup: *const *const cgroup,
-        task_uid: *mut libc::uid_t,
-        task_gid: *mut libc::gid_t,
-        ctrl_uid: *mut libc::uid_t,
-        ctrl_gid: *mut libc::gid_t,
-    ) -> libc::c_int;
-
-    pub fn cgroup_set_uid_gid(
-        cgroup: *const *const cgroup,
-        task_uid: libc::uid_t,
-        task_gid: libc::gid_t,
-        ctrl_uid: libc::uid_t,
-        ctrl_gid: libc::gid_t,
     ) -> libc::c_int;
 
 }

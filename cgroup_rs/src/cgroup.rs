@@ -3,7 +3,8 @@ use log::debug;
 use std::collections::HashMap;
 
 
-pub struct CGroupTask{
+#[derive(Debug)]
+pub struct CGroupTasks{
     pub tasks_uid: u32,
     pub c_task_uid: libc::uid_t,
     pub tasks_gid: u32,
@@ -26,13 +27,14 @@ pub struct CGroupBuilder<'a,'b>{
 #[derive(Debug)]
 pub struct CGroupControllerBuilder<'a>{
     name: &'a str,
+    c_groups: *mut cgroup,
     c_groups_ctrl: *mut cgroup_controller,
 }
 
 
 impl<'a> CGroupControllerBuilder<'a>{
-    pub fn new(name:&'a str,c_groups_ctrl:*mut cgroup_controller)->Self{
-        Self{name,c_groups_ctrl}
+    pub fn new(name:&'a str,c_groups:*mut cgroup,c_groups_ctrl:*mut cgroup_controller)->Self{
+        Self{name,c_groups,c_groups_ctrl}
     }
 
     pub fn add_str(&mut self,name:&str,value:&str)->Result<(),std::io::Error>{
@@ -211,7 +213,46 @@ impl<'a> CGroupControllerBuilder<'a>{
             let ret = cgroup_get_value_int64(self.c_groups_ctrl,c_name.as_ptr(),c_value as *mut libc::c_longlong);
             debug!("(CGroupControllerBuilder::get_i64) = {}",ret);
             return match ret {
-                C_CG_SUCCESS => Ok(Some(ret as i64)),
+                C_CG_SUCCESS => Ok(Some(c_value as i64)),
+                C_CG_NOT_PARAM => Ok(None),
+                _ => Err(std::io::Error::new(
+                    std::io::Error::from_raw_os_error(ret).kind(),
+                    std::ffi::CStr::from_ptr(cgroup_strerror(ret))
+                        .to_string_lossy()
+                        .into_owned()
+                ))
+            }
+        }
+    }
+
+    pub fn get_u64(&mut self,name:&str)->Result<Option<u64>,std::io::Error>{
+        unsafe {
+            let c_name = std::ffi::CString::new(name)?;
+            let c_value = std::ptr::null_mut();
+            let ret = cgroup_get_value_uint64(self.c_groups_ctrl,c_name.as_ptr(),c_value as *mut libc::c_ulonglong);
+            debug!("(CGroupControllerBuilder::get_u64) = {}",ret);
+            return match ret {
+                C_CG_SUCCESS => Ok(Some(c_value as u64)),
+                C_CG_NOT_PARAM => Ok(None),
+                _ => Err(std::io::Error::new(
+                    std::io::Error::from_raw_os_error(ret).kind(),
+                    std::ffi::CStr::from_ptr(cgroup_strerror(ret))
+                        .to_string_lossy()
+                        .into_owned()
+                ))
+            }
+        }
+    }
+
+
+    pub fn get_bool(&mut self,name:&str)->Result<Option<bool>,std::io::Error>{
+        unsafe {
+            let c_name = std::ffi::CString::new(name)?;
+            let c_value = std::ptr::null_mut();
+            let ret = cgroup_get_value_bool(self.c_groups_ctrl,c_name.as_ptr(),c_value as *mut libc::c_int);
+            debug!("(CGroupControllerBuilder::get_bool) = {}",ret);
+            return match ret {
+                C_CG_SUCCESS => Ok(Some((c_value as i32) > 0)),
                 C_CG_NOT_PARAM => Ok(None),
                 _ => Err(std::io::Error::new(
                     std::io::Error::from_raw_os_error(ret).kind(),
@@ -279,7 +320,7 @@ impl<'a,'b> CGroupBuilder<'a,'b>{
             if c_ctrl_ptr.is_null() {
                 return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
             }
-            CGroupControllerBuilder::new(name,c_ctrl_ptr)
+            CGroupControllerBuilder::new(name,self.c_groups,c_ctrl_ptr)
         });
 
         Ok(())
@@ -405,8 +446,139 @@ impl<'a,'b> CGroupBuilder<'a,'b>{
     }
 
 
+    pub fn get_tasks(&self)->Result<CGroupTasks,std::io::Error>{
+        unsafe {
+            let mut c_task_uid: libc::uid_t = 0;
+            let mut c_task_gid: libc::gid_t = 0;
+            let mut c_ctrl_uid: libc::uid_t = 0;
+            let mut c_ctrl_gid: libc::gid_t = 0;
 
+            let ret = cgroup_get_uid_gid(self.c_groups,
+                               &mut c_task_uid as *mut libc::uid_t,
+                               &mut c_task_gid as *mut libc::gid_t,
+                               &mut c_ctrl_uid as *mut libc::uid_t,
+                               &mut c_ctrl_gid as *mut libc::gid_t
+            );
+            debug!("(CGroupBuilder::get_tasks) = {}",ret);
+            if ret != C_CG_SUCCESS {
+                return Err(std::io::Error::new(
+                    std::io::Error::from_raw_os_error(ret).kind(),
+                    std::ffi::CStr::from_ptr(cgroup_strerror(ret))
+                        .to_string_lossy()
+                        .into_owned()
+                ));
+            }
+
+            Ok(CGroupTasks{
+                c_task_uid,
+                tasks_uid: c_task_uid as u32,
+                c_task_gid,
+                tasks_gid: c_task_gid as u32,
+                c_ctrl_uid,
+                ctrl_uid: c_ctrl_uid as u32,
+                c_ctrl_gid,
+                ctrl_gid: c_ctrl_gid as u32
+            })
+        }
+    }
+
+    pub fn set_tasks(&self,tasks:&CGroupTasks)->Result<(),std::io::Error>{
+        unsafe {
+            let c_task_uid: libc::uid_t = tasks.c_task_uid;
+            let c_task_gid: libc::gid_t = tasks.c_task_gid;
+            let c_ctrl_uid: libc::uid_t = tasks.c_ctrl_uid;
+            let c_ctrl_gid: libc::gid_t = tasks.c_ctrl_gid;
+
+            let ret = cgroup_set_uid_gid(self.c_groups,
+                                         c_task_uid,
+                                         c_task_gid,
+                                         c_ctrl_uid,
+                                         c_ctrl_gid
+            );
+
+            debug!("(CGroupBuilder::set_tasks) = {}",ret);
+            if ret != C_CG_SUCCESS {
+                return Err(std::io::Error::new(
+                    std::io::Error::from_raw_os_error(ret).kind(),
+                    std::ffi::CStr::from_ptr(cgroup_strerror(ret))
+                        .to_string_lossy()
+                        .into_owned()
+                ));
+            }
+            Ok(())
+        }
+    }
+
+
+    pub fn attach_task(&self)->Result<(),std::io::Error>{
+        unsafe {
+            let ret = cgroup_attach_task(self.c_groups);
+            debug!("(CGroupBuilder::attach_task) = {}",ret);
+            if ret != C_CG_SUCCESS {
+                return Err(std::io::Error::new(
+                    std::io::Error::from_raw_os_error(ret).kind(),
+                    std::ffi::CStr::from_ptr(cgroup_strerror(ret))
+                        .to_string_lossy()
+                        .into_owned()
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn attach_task_pid(&self,pid:i32)->Result<(),std::io::Error>{
+        unsafe {
+            let c_pid = libc::pid_t::from(pid);
+            let ret = cgroup_attach_task_pid(self.c_groups,c_pid);
+            debug!("(CGroupBuilder::attach_task_pid) = {}",ret);
+            if ret != C_CG_SUCCESS {
+                return Err(std::io::Error::new(
+                    std::io::Error::from_raw_os_error(ret).kind(),
+                    std::ffi::CStr::from_ptr(cgroup_strerror(ret))
+                        .to_string_lossy()
+                        .into_owned()
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn attach_shell(&self,root:&str)->Result<(),std::io::Error>{
+        let c_exec = std::ffi::CString::new("/bin/sh")?;
+        unsafe {
+            let c_root = std::ffi::CString::new(root)?;
+            let ret = libc::chroot(c_root.as_ptr());
+            if ret != C_CG_SUCCESS {
+                return Err(std::io::Error::new(
+                    std::io::Error::from_raw_os_error(ret).kind(),
+                    "Failed by change root path in CGroup"
+                ));
+            }
+
+
+            let pid = libc::fork();
+            if pid < 0 {
+                return Err(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable));
+            }else if pid > 0 {
+                let mut status: libc::c_int = 0;
+                let c_pid = libc::wait(&mut status);
+                debug!("Parent = {}",c_pid);
+            }else {
+                self.attach_task_pid(libc::getpid())?;
+                debug!("Child = {}",libc::getpid());
+                let ret = libc::execl(c_exec.as_ptr(),std::ptr::null());
+                if ret != C_CG_SUCCESS {
+                    return Err(std::io::Error::new(
+                        std::io::Error::from_raw_os_error(ret).kind(),
+                        "Failed by Attach CGroup Shell"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
 }
+
 
 
 
