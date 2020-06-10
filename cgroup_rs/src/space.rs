@@ -1,4 +1,4 @@
-
+use log::debug;
 
 pub struct SpaceBuilder<'a,'b,'c,'d>{
     src_path:&'a str,
@@ -82,13 +82,23 @@ impl<'a,'b,'c,'d> SpaceBuilder<'a,'b,'c,'d>{
                 c_opts_void
             );
 
+            debug!("(SpaceBuilder::mount) = {}",ret);
+
             if ret != 0 {
                 std::fs::remove_dir(self.target_path)?;
-                return Err(std::io::Error::from_raw_os_error(ret))
+                return Err(std::io::Error::from_raw_os_error(ret));
             }
         }
 
         Ok(())
+    }
+
+    pub fn exists(&self)->bool{
+        match std::fs::metadata(self.target_path) {
+            Ok(d) if !d.is_dir() => false,
+            Err(e) if e.kind().eq(&std::io::ErrorKind::NotFound) => false,
+            _ => true
+        }
     }
 
     pub const MNT_DEFAULT:i32 = 0x0;
@@ -112,6 +122,7 @@ impl<'a,'b,'c,'d> SpaceBuilder<'a,'b,'c,'d>{
                 libc::umount2(c_target_path.as_ptr(),c_flags)
             };
 
+            debug!("(SpaceBuilder::umount) = {}",ret);
             if ret != 0 {
                 return Err(std::io::Error::from_raw_os_error(ret))
             }

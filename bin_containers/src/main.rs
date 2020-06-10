@@ -1,37 +1,63 @@
-use lib_containers::space::{SpaceDisposer, SpaceBuilder};
+use log::{debug};
+use cgroup_rs::space::SpaceBuilder;
+use cgroup_rs::prelude::{CGroupInitializer, CG_NOT_MOUNT};
+use cgroup_rs::cgroup::CGroupBuilder;
+
 
 fn main() -> Result<(),std::io::Error>{
-
-    /*
-    let entries = std::fs::read_dir("/")?
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, std::io::Error>>()?;
-
-    println!("ROOT:{:?}",entries);
-
-    let disposer = SpaceDisposer::from("/mem_vm")?;
-    disposer.update()?;
+    env_logger::init();
 
 
-    let entries = std::fs::read_dir("/")?
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, std::io::Error>>()?;
 
-    println!("CHROOT :{:?}",entries);
-     */
 
-    let mut builder = SpaceBuilder::new();
 
-    builder
-        .set_target_path("/mnt/cgroup2")
-        .set_src_path("none")
-        .set_type_name("cgroup2")
-        .mount()?;
+    // Initialize Cgroup
+    match CGroupInitializer::init() {
+        Ok(_) => (),
+        Err(e) if e
+            .kind()
+            .eq(&std::io::Error::from_raw_os_error(CG_NOT_MOUNT).kind()) =>{
 
-    std::thread::sleep(std::time::Duration::from_secs(5));
-    builder
-        .umount(SpaceBuilder::MNT_DETACH|SpaceBuilder::MNT_FORCE)?;
+            // Mouth Space
+            let mut space = SpaceBuilder::new();
+            space
+                .set_target_path("/dev/shm/cgroup")
+                .set_src_path("cgroup")
+                .set_type_name("cgroup")
+                .set_opts("cpu");
 
+            if !space.exists() {
+                space.mount()?;
+            }
+
+        },
+        Err(e) => return Err(e),
+    }
+
+
+    let mount_point = CGroupInitializer::get_subsys_mount_point("cpu")?;
+    debug!("[CPU] Mount Point = {}",mount_point);
+
+
+
+    //build cgroup
+    let mut cgroup = CGroupBuilder::new("mini-container")?;
+
+    cgroup.add_controller("cpu")?;
+
+    if let Some(cg) = cgroup.get_mut_controller("cpu") {
+        cg.add_str("title","MeteorCat")?;
+        println!("CGROUP = {:?}",cg);
+    }
+
+    cgroup.modify()?;
+    if let Some(cg) = cgroup.get_mut_controller("cpu") {
+        println!("CGROUP = {:?}",cg.get_str("title")?);
+    }
+
+
+    //cgroup.create(0)?;
+    //cgroup.delete(0)?;
 
     Ok(())
 }

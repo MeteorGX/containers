@@ -7,4 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lib_containers = { path="../lib_containers", version="*" }
+#lib_containers = { path="../lib_containers", version="*" }
+cgroup_rs = { path ="../cgroup_rs", version="*" }
+log = "*"
+env_logger = "*"
